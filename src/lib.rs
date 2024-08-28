@@ -53,16 +53,16 @@ pub trait ResultOptionExt<T, E> {
 	///	   Two,
 	/// }
 	///
-	/// fn result_ok_some() -> Result<Option<&'static str>, ErrorOne> {
-	///    Ok(Some("trans rights"))
+	/// fn result_ok_none() -> Result<Option<&'static str>, ErrorOne> {
+	///    Ok(None)
 	/// }
 	///
-	/// fn option_some_ok() -> Option<Result<&'static str, ErrorOne>> {
-	///    Some(Ok("trans rights"))
+	/// fn option_some_err() -> Option<Result<&'static str, ErrorOne>> {
+	///    Some(Err(ErrorOne::One))
 	/// }
 	///
-	/// assert!(result_ok_some().unwrap_or_err(ErrorTwo::Two).is_ok());
-	///	assert!(option_some_ok().unwrap_or_err(ErrorTwo::Two).is_ok());
+	/// assert!(matches!(result_ok_none().unwrap_or_err(ErrorTwo::Two), Err(ErrorTwo::Two)));
+	///	assert!(matches!(option_some_err().unwrap_or_err(ErrorTwo::Two), Err(ErrorTwo::Two)));
 	/// ```
 	fn unwrap_or_err<E2>(self, err: E2) -> Result<T, E2>;
 
@@ -90,18 +90,78 @@ pub trait ResultOptionExt<T, E> {
 	///	   Two,
 	/// }
 	///
-	/// fn result_ok_some() -> Result<Option<&'static str>, ErrorOne> {
-	///    Ok(Some("trans rights"))
+	/// fn result_ok_none() -> Result<Option<&'static str>, ErrorOne> {
+	///    Ok(None)
 	/// }
 	///
-	/// fn option_some_ok() -> Option<Result<&'static str, ErrorOne>> {
-	///    Some(Ok("trans rights"))
+	/// fn option_some_err() -> Option<Result<&'static str, ErrorOne>> {
+	///    Some(Err(ErrorOne::One))
 	/// }
 	///
-	/// assert!(result_ok_some().unwrap_or_else_err(|| ErrorTwo::Two).is_ok());
-	///	assert!(option_some_ok().unwrap_or_else_err(|| ErrorTwo::Two).is_ok());
+	/// assert!(matches!(result_ok_none().unwrap_or_else_err(|| ErrorTwo::Two), Err(ErrorTwo::Two)));
+	///	assert!(matches!(option_some_err().unwrap_or_else_err(|| ErrorTwo::Two), Err(ErrorTwo::Two)));
 	/// ```
 	fn unwrap_or_else_err<E2, F: FnOnce() -> E2>(self, f: F) -> Result<T, E2>;
+
+	/// Maps either a `Result<Option<T>, E>` or `Option<Result<T, E>>` to a `Result<T, E2>` by applying a function to a contained Err value, leaving an Ok value untouched.
+	/// Defaults to `Err(default)` if `None`.
+	///
+	/// # Example
+	///
+	/// ```rust
+	///	use composable_utils::ResultOptionExt;
+	///
+	/// enum ErrorOne {
+	///	   One,
+	/// }
+	///
+	/// enum ErrorTwo {
+	///	   Two,
+	///    Three,
+	/// }
+	///
+	/// fn result_ok_none() -> Result<Option<&'static str>, ErrorOne> {
+	///    Ok(None)
+	/// }
+	///
+	/// fn option_some_err() -> Option<Result<&'static str, ErrorOne>> {
+	///    Some(Err(ErrorOne::One))
+	/// }
+	///
+	/// assert!(matches!(result_ok_none().unwrap_or_map_err(ErrorTwo::Two, |err| ErrorTwo::Three), Err(ErrorTwo::Two)));
+	///	assert!(matches!(option_some_err().unwrap_or_map_err(ErrorTwo::Two, |err| ErrorTwo::Three), Err(ErrorTwo::Three)));
+	/// ```
+	fn unwrap_or_map_err<E2, F: FnOnce(E) -> E2>(self, default: E2, f: F) -> Result<T, E2>;
+
+	/// Maps either a `Result<Option<T>, E>` or `Option<Result<T, E>>` to a `Result<T, E2>` by applying a function to a contained Err value, leaving an Ok value untouched.
+	/// Defaults to `Err(default)` if `None`.
+	///
+	/// # Example
+	///
+	/// ```rust
+	///	use composable_utils::ResultOptionExt;
+	///
+	/// enum ErrorOne {
+	///	   One,
+	/// }
+	///
+	/// enum ErrorTwo {
+	///	   Two,
+	///    Three,
+	/// }
+	///
+	/// fn result_ok_none() -> Result<Option<&'static str>, ErrorOne> {
+	///    Ok(None)
+	/// }
+	///
+	/// fn option_some_err() -> Option<Result<&'static str, ErrorOne>> {
+	///    Some(Err(ErrorOne::One))
+	/// }
+	///
+	/// assert!(matches!(result_ok_none().unwrap_or_else_map_err(|| ErrorTwo::Two, |err| ErrorTwo::Three), Err(ErrorTwo::Two)));
+	///	assert!(matches!(option_some_err().unwrap_or_else_map_err(|| ErrorTwo::Two, |err| ErrorTwo::Three), Err(ErrorTwo::Three)));
+	/// ```
+	fn unwrap_or_else_map_err<E2, F: FnOnce(E) -> E2, F2: FnOnce() -> E2>(self, default: F2, f: F) -> Result<T, E2>;
 }
 
 impl<T> AsyncOptionExt<T> for Option<T> {
@@ -129,6 +189,22 @@ impl<T, E> ResultOptionExt<T, E> for Option<Result<T, E>> {
 			None => Err(f()),
 		}
 	}
+
+	fn unwrap_or_map_err<E2, F: FnOnce(E) -> E2>(self, default: E2, f: F) -> Result<T, E2> {
+		match self {
+			Some(Ok(t)) => Ok(t),
+			Some(Err(e)) => Err(f(e)),
+			None => Err(default),
+		}
+	}
+
+	fn unwrap_or_else_map_err<E2, F: FnOnce(E) -> E2, F2: FnOnce() -> E2>(self, default: F2, f: F) -> Result<T, E2> {
+		match self {
+			Some(Ok(t)) => Ok(t),
+			Some(Err(e)) => Err(f(e)),
+			None => Err(default()),
+		}
+	}
 }
 
 impl<T, E> ResultOptionExt<T, E> for Result<Option<T>, E> {
@@ -149,6 +225,26 @@ impl<T, E> ResultOptionExt<T, E> for Result<Option<T>, E> {
 				None => Err(f()),
 			},
 			Err(_) => Err(f()),
+		}
+	}
+
+	fn unwrap_or_map_err<E2, F: FnOnce(E) -> E2>(self, default: E2, f: F) -> Result<T, E2> {
+		match self {
+			Ok(t) => match t {
+				Some(t) => Ok(t),
+				None => Err(default),
+			},
+			Err(e) => Err(f(e)),
+		}
+	}
+
+	fn unwrap_or_else_map_err<E2, F: FnOnce(E) -> E2, F2: FnOnce() -> E2>(self, default: F2, f: F) -> Result<T, E2> {
+		match self {
+			Ok(t) => match t {
+				Some(t) => Ok(t),
+				None => Err(default()),
+			},
+			Err(e) => Err(f(e)),
 		}
 	}
 }
