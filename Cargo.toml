@@ -2,6 +2,10 @@
 name = "composable-utils"
 version = "0.1.0"
 edition = "2021"
+description = "Simple utility functions for Option<T>, Option<Result<T, E>>, and Result<Option<T>, E>"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/composable-utils"
+repository = "https://github.com/lillianrubyrose/composable-utils"
 
 [dependencies]
 
